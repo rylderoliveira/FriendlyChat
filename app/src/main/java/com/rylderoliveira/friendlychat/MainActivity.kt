@@ -39,24 +39,6 @@ class MainActivity : AppCompatActivity() {
         onSignInResult(result)
     }
 
-    private fun onSignInResult(result: FirebaseAuthUIAuthenticationResult?) {
-        val response = result?.idpResponse
-        if (result?.resultCode == RESULT_OK) {
-            userName = auth.currentUser.toString()
-            onSignedInInitialize(userName)
-        } else {
-            val errorCode = response?.error?.errorCode
-            handleSignInError(errorCode)
-        }
-    }
-
-    private fun handleSignInError(errorCode: Int?) {
-        when (errorCode) {
-            ErrorCodes.UNKNOWN_ERROR -> finish()
-            null -> finish()
-        }
-    }
-
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         binding = ActivityMainBinding.inflate(layoutInflater)
@@ -71,6 +53,18 @@ class MainActivity : AppCompatActivity() {
     override fun onCreateOptionsMenu(menu: Menu?): Boolean {
         menuInflater.inflate(R.menu.menu_logout, menu)
         return true
+    }
+
+    override fun onResume() {
+        super.onResume()
+        auth.addAuthStateListener(authStateListener)
+    }
+
+    override fun onPause() {
+        super.onPause()
+        auth.removeAuthStateListener(authStateListener)
+        detachDatabaseReadListener()
+        messageAdapter.clear()
     }
 
     override fun onOptionsItemSelected(item: MenuItem): Boolean {
@@ -153,6 +147,24 @@ class MainActivity : AppCompatActivity() {
         childEventListener = null
     }
 
+    private fun onSignInResult(result: FirebaseAuthUIAuthenticationResult?) {
+        val response = result?.idpResponse
+        if (result?.resultCode == RESULT_OK) {
+            userName = auth.currentUser.toString()
+            onSignedInInitialize(userName)
+        } else {
+            val errorCode = response?.error?.errorCode
+            handleSignInError(errorCode)
+        }
+    }
+
+    private fun handleSignInError(errorCode: Int?) {
+        when (errorCode) {
+            ErrorCodes.UNKNOWN_ERROR -> finish()
+            null -> finish()
+        }
+    }
+
     private fun sendMessage() {
         val textMessage = binding.editTextMessage.text.toString()
         val message = Message(
@@ -162,17 +174,5 @@ class MainActivity : AppCompatActivity() {
         )
         messageDatabaseReference.push().setValue(message)
         binding.editTextMessage.setText("")
-    }
-
-    override fun onResume() {
-        super.onResume()
-        auth.addAuthStateListener(authStateListener)
-    }
-
-    override fun onPause() {
-        super.onPause()
-        auth.removeAuthStateListener(authStateListener)
-        detachDatabaseReadListener()
-        messageAdapter.clear()
     }
 }
