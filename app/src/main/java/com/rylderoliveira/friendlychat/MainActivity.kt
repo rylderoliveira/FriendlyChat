@@ -1,17 +1,16 @@
 package com.rylderoliveira.friendlychat
 
-import android.app.ActionBar
 import android.os.Bundle
 import android.util.Log
 import android.view.Menu
-import android.view.MenuInflater
 import android.view.MenuItem
-import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
 import androidx.recyclerview.widget.LinearLayoutManager
 import com.firebase.ui.auth.AuthUI
 import com.firebase.ui.auth.AuthUI.IdpConfig.AnonymousBuilder
+import com.firebase.ui.auth.ErrorCodes
 import com.firebase.ui.auth.FirebaseAuthUIActivityResultContract
+import com.firebase.ui.auth.data.model.FirebaseAuthUIAuthenticationResult
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.auth.ktx.auth
 import com.google.firebase.database.ChildEventListener
@@ -32,18 +31,31 @@ class MainActivity : AppCompatActivity() {
     private lateinit var messageDatabaseReference: DatabaseReference
     private lateinit var messageAdapter: MessageAdapter
     private lateinit var authStateListener: FirebaseAuth.AuthStateListener
-    private lateinit var appBar: ActionBar
     private var childEventListener: ChildEventListener? = null
     private var userName: String? = null
-    val a = registerForActivityResult(FirebaseAuthUIActivityResultContract()) {
-        if (it.resultCode == RESULT_OK) {
-            Toast.makeText(this, "Signed in!", Toast.LENGTH_SHORT).show()
+    private val signInLauncher = registerForActivityResult(
+        FirebaseAuthUIActivityResultContract(),
+    ) { result ->
+        onSignInResult(result)
+    }
+
+    private fun onSignInResult(result: FirebaseAuthUIAuthenticationResult?) {
+        val response = result?.idpResponse
+        if (result?.resultCode == RESULT_OK) {
+            userName = auth.currentUser.toString()
+            onSignedInInitialize(userName)
         } else {
-            Toast.makeText(this, "Signed in!", Toast.LENGTH_SHORT).show()
-            finish()
+            val errorCode = response?.error?.errorCode
+            handleSignInError(errorCode)
         }
     }
 
+    private fun handleSignInError(errorCode: Int?) {
+        when (errorCode) {
+            ErrorCodes.UNKNOWN_ERROR -> finish()
+            null -> finish()
+        }
+    }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -63,9 +75,7 @@ class MainActivity : AppCompatActivity() {
 
     override fun onOptionsItemSelected(item: MenuItem): Boolean {
         when (item.itemId) {
-            R.id.item_logout -> {
-                auth.signOut()
-            }
+            R.id.item_logout -> auth.signOut()
         }
         return true
     }
@@ -87,14 +97,16 @@ class MainActivity : AppCompatActivity() {
                 onSignedInInitialize(user.displayName)
             } else {
                 onSignedOutCleanup()
+                val providers = arrayListOf(
+                    AuthUI.IdpConfig.GoogleBuilder().build(),
+                    AuthUI.IdpConfig.EmailBuilder().build(),
+                )
                 val intent = AuthUI.getInstance()
                     .createSignInIntentBuilder()
-                    .setAvailableProviders(listOf(
-                            AuthUI.IdpConfig.GoogleBuilder().build(),
-                            AuthUI.IdpConfig.EmailBuilder().build(),
-                        )
-                    ).build()
-                a.launch(intent)
+                    .setIsSmartLockEnabled(false)
+                    .setAvailableProviders(providers)
+                    .build()
+                signInLauncher.launch(intent)
             }
         }
     }
@@ -108,7 +120,6 @@ class MainActivity : AppCompatActivity() {
         userName = AnonymousBuilder().build().providerId
         messageAdapter.clear()
         detachDatabaseReadListener()
-        childEventListener = null
     }
 
     private fun attachDatabaseReadListener() {
@@ -139,6 +150,7 @@ class MainActivity : AppCompatActivity() {
 
     private fun detachDatabaseReadListener() {
         childEventListener?.let { messageDatabaseReference.removeEventListener(it) }
+        childEventListener = null
     }
 
     private fun sendMessage() {
@@ -163,6 +175,4 @@ class MainActivity : AppCompatActivity() {
         detachDatabaseReadListener()
         messageAdapter.clear()
     }
-
-
 }
