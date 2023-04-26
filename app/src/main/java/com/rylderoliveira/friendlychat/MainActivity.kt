@@ -43,7 +43,7 @@ class MainActivity : AppCompatActivity() {
         super.onCreate(savedInstanceState)
         binding = ActivityMainBinding.inflate(layoutInflater)
         database = Firebase.database
-        messageDatabaseReference = database.reference.child("message")
+        messageDatabaseReference = database.reference.child("messages")
         auth = Firebase.auth
         setContentView(binding.root)
         initListeners()
@@ -83,7 +83,9 @@ class MainActivity : AppCompatActivity() {
 
     private fun initListeners() {
         binding.imageButtonSend.setOnClickListener {
-            sendMessage()
+            if (binding.editTextMessage.text.isNullOrBlank().not()) {
+                sendMessage()
+            }
         }
         authStateListener = FirebaseAuth.AuthStateListener {
             val user = it.currentUser
@@ -128,7 +130,7 @@ class MainActivity : AppCompatActivity() {
             }
 
             override fun onChildRemoved(snapshot: DataSnapshot) {
-                TODO("Not yet implemented")
+                Log.i("Rylder", "Removed $snapshot")
             }
 
             override fun onChildMoved(snapshot: DataSnapshot, previousChildName: String?) {
