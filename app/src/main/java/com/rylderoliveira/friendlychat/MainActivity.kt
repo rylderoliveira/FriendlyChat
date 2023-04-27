@@ -1,9 +1,11 @@
 package com.rylderoliveira.friendlychat
 
+import android.net.Uri
 import android.os.Bundle
 import android.util.Log
 import android.view.Menu
 import android.view.MenuItem
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AppCompatActivity
 import androidx.recyclerview.widget.LinearLayoutManager
 import com.firebase.ui.auth.AuthUI
@@ -21,6 +23,9 @@ import com.google.firebase.database.FirebaseDatabase
 import com.google.firebase.database.ktx.database
 import com.google.firebase.database.ktx.getValue
 import com.google.firebase.ktx.Firebase
+import com.google.firebase.storage.FirebaseStorage
+import com.google.firebase.storage.StorageReference
+import com.google.firebase.storage.ktx.storage
 import com.rylderoliveira.friendlychat.databinding.ActivityMainBinding
 
 class MainActivity : AppCompatActivity() {
@@ -28,9 +33,12 @@ class MainActivity : AppCompatActivity() {
     private lateinit var binding: ActivityMainBinding
     private lateinit var database: FirebaseDatabase
     private lateinit var auth: FirebaseAuth
+    private lateinit var storage: FirebaseStorage
     private lateinit var messageDatabaseReference: DatabaseReference
+    private lateinit var fileStorageReference: StorageReference
     private lateinit var messageAdapter: MessageAdapter
     private lateinit var authStateListener: FirebaseAuth.AuthStateListener
+    private var fileUrl: String? = null
     private var childEventListener: ChildEventListener? = null
     private var userName: String? = null
     private val signInLauncher = registerForActivityResult(
@@ -38,12 +46,31 @@ class MainActivity : AppCompatActivity() {
     ) { result ->
         onSignInResult(result)
     }
+    private val filePickerLauncher = registerForActivityResult(
+        ActivityResultContracts.GetContent()
+    ) { result ->
+        onSelectionResult(result)
+    }
+
+    private fun onSelectionResult(result: Uri?) {
+        result?.let { uri ->
+            val imagesRef = fileStorageReference.child("${uri.lastPathSegment}")
+            imagesRef.putFile(uri)
+                .addOnSuccessListener { task ->
+                    task.storage.downloadUrl.addOnSuccessListener {
+                        fileUrl = it.toString()
+                    }
+                }
+        }
+    }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         binding = ActivityMainBinding.inflate(layoutInflater)
         database = Firebase.database
+        storage = Firebase.storage
         messageDatabaseReference = database.reference.child("messages")
+        fileStorageReference = storage.reference.child("images")
         auth = Firebase.auth
         setContentView(binding.root)
         initListeners()
@@ -83,9 +110,15 @@ class MainActivity : AppCompatActivity() {
 
     private fun initListeners() {
         binding.imageButtonSend.setOnClickListener {
-            if (binding.editTextMessage.text.isNullOrBlank().not()) {
+            if (binding.editTextMessage.text.isNullOrBlank().not() || fileUrl.isNullOrBlank().not()) {
                 sendMessage()
             }
+        }
+        binding.imageButtonImage.setOnClickListener {
+             filePickerLauncher.launch("*/*")
+        }
+        binding.recyclerViewMessage.addOnLayoutChangeListener { view, i, i2, i3, i4, i5, i6, i7, i8 ->
+            binding.recyclerViewMessage.smoothScrollToPosition(messageAdapter.itemCount)
         }
         authStateListener = FirebaseAuth.AuthStateListener {
             val user = it.currentUser
@@ -122,7 +155,9 @@ class MainActivity : AppCompatActivity() {
         childEventListener = object : ChildEventListener {
             override fun onChildAdded(snapshot: DataSnapshot, previousChildName: String?) {
                 val message = snapshot.getValue<Message>()
-                message?.let { messageAdapter.addMessage(it) }
+                message?.let {
+                    messageAdapter.addMessage(it)
+                }
             }
 
             override fun onChildChanged(snapshot: DataSnapshot, previousChildName: String?) {
@@ -172,9 +207,13 @@ class MainActivity : AppCompatActivity() {
         val message = Message(
             text = textMessage,
             userName = auth.currentUser?.displayName,
-            imageUrl = null,
+            fileUrl = fileUrl,
         )
+        fileUrl = null
         messageDatabaseReference.push().setValue(message)
         binding.editTextMessage.setText("")
+        binding.editTextMessage.requestFocus()
     }
+
+
 }
