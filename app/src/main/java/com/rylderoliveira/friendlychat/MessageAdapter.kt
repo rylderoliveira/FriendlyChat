@@ -25,8 +25,10 @@ class MessageAdapter(
     override fun getItemCount(): Int = items.size
 
     fun addMessage(message: Message) {
-        items.add(message)
-        notifyItemInserted(itemCount)
+        if (items.any { it.id == message.id  }.not()) {
+            items.add(message)
+            notifyItemInserted(itemCount)
+        }
     }
 
     fun removeMessage(message: Message) {

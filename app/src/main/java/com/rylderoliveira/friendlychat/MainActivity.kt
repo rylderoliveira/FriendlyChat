@@ -54,7 +54,8 @@ class MainActivity : AppCompatActivity() {
 
     private fun onSelectionResult(result: Uri?) {
         result?.let { uri ->
-            val imagesRef = fileStorageReference.child("${uri.lastPathSegment}")
+            val storagePath = "${auth.currentUser?.uid}/${uri.lastPathSegment}"
+            val imagesRef = fileStorageReference.child(storagePath)
             imagesRef.putFile(uri)
                 .addOnSuccessListener { task ->
                     task.storage.downloadUrl.addOnSuccessListener {
@@ -155,9 +156,7 @@ class MainActivity : AppCompatActivity() {
         childEventListener = object : ChildEventListener {
             override fun onChildAdded(snapshot: DataSnapshot, previousChildName: String?) {
                 val message = snapshot.getValue<Message>()
-                message?.let {
-                    messageAdapter.addMessage(it)
-                }
+                message?.let { messageAdapter.addMessage(it) }
             }
 
             override fun onChildChanged(snapshot: DataSnapshot, previousChildName: String?) {
@@ -204,16 +203,16 @@ class MainActivity : AppCompatActivity() {
 
     private fun sendMessage() {
         val textMessage = binding.editTextMessage.text.toString()
+        val childId = messageDatabaseReference.push().key
         val message = Message(
+            id = childId,
             text = textMessage,
             userName = auth.currentUser?.displayName,
             fileUrl = fileUrl,
         )
         fileUrl = null
-        messageDatabaseReference.push().setValue(message)
+        childId?.let { messageDatabaseReference.child(it).setValue(message) }
         binding.editTextMessage.setText("")
         binding.editTextMessage.requestFocus()
     }
-
-
 }
